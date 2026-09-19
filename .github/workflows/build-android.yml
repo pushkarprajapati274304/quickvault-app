@@ -14,13 +14,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # अगर किसी ने पूरी zip अपलोड कर दी हो तो उसे ऑटो-अनजिप करें
+      - name: Unpack Zip if present
+        run: |
+          if [ -f quickvault-android-app.zip ]; then
+            unzip -o quickvault-android-app.zip
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install NPM Dependencies
-        run: npm install
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
 
       - name: Build Web Assets
         run: npm run build
@@ -34,35 +41,39 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Initialize & Sync Capacitor Android
+      # फ्रेश और कम्प्लीट Android प्रोजेक्ट तैयार करें
+      - name: Generate Fresh Android Native Project
         run: |
-          npx cap add android || true
+          rm -rf android
+          npx cap add android
           npx cap sync android
 
-      - name: Generate Release Keystore (if not present)
+      # रिलीज की-स्टोर बनाएं (अगर नहीं है)
+      - name: Create Release Keystore
         run: |
-          if [ ! -f android/app/release.keystore ]; then
-            keytool -genkey -v -keystore android/app/release.keystore -alias quickvault_key -keyalg RSA -keysize 2048 -validity 10000 -storepass quickvaultpass -keypass quickvaultpass -dname "CN=Pushkar, OU=QuickVault, O=Personal, L=City, ST=State, C=IN"
-          fi
+          keytool -genkey -v -keystore android/app/release.keystore -alias quickvault_key -keyalg RSA -keysize 2048 -validity 10000 -storepass quickvaultpass -keypass quickvaultpass -dname "CN=Pushkar, OU=QuickVault, O=Personal, L=City, ST=State, C=IN"
 
+      # .APK तैयार करें
       - name: Build Signed Release APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease
 
-      - name: Build Signed Play Store Release AAB Bundle
+      # Play Store के लिए .AAB तैयार करें
+      - name: Build Signed Play Store AAB Bundle
         run: |
           cd android
           ./gradlew bundleRelease
 
-      - name: Upload Release APK Artifact
+      # दोनों फाइलों को डाउनलोड के लिए सेव करें
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: QuickVault-Release-APK
           path: android/app/build/outputs/apk/release/*.apk
 
-      - name: Upload Play Store AAB Bundle Artifact
+      - name: Upload Play Store AAB
         uses: actions/upload-artifact@v4
         with:
           name: QuickVault-PlayStore-AAB
